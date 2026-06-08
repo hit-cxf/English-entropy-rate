@@ -6,6 +6,8 @@ Experiments for estimating English text entropy rate with traditional
 compression, language-model cross entropy, and a small LLM-driven arithmetic
 compressor.
 
+![English entropy rate and LLM compression diagram](assets/english-entropy-llm-compression.png)
+
 This repository grew out of a simple question:
 
 > If English has about 26 letters, why can its entropy rate be close to
