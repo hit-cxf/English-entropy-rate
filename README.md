@@ -41,6 +41,24 @@ PYTHONPATH=src python -m english_entropy_rate llm \
 On Apple Silicon, the CLI automatically prefers the MPS backend when available.
 Override it with `--device cpu` or `--device mps` when comparing hardware.
 
+Compress a small UTF-8 text file to the project format:
+
+```bash
+PYTHONPATH=src python -m english_entropy_rate compress \
+  data/sample.txt \
+  --model distilbert/distilgpt2
+```
+
+The default output path appends `.my-llm`, for example
+`data/sample.txt.my-llm`. Decompress with the same model:
+
+```bash
+PYTHONPATH=src python -m english_entropy_rate decompress \
+  data/sample.txt.my-llm \
+  /tmp/sample.roundtrip.txt \
+  --model distilbert/distilgpt2
+```
+
 For larger texts, use a smaller model first (`distilgpt2`) and increase
 `--stride` only after the workflow is behaving as expected.
 
@@ -69,3 +87,27 @@ coding overhead.
 - Report the symbol unit clearly: byte, character, token, or letter.
 - A pretrained model is shared side information. If you count model weights as
   part of the compressed payload, short files become extremely expensive.
+
+## `.my-llm` Format
+
+The compressor writes a fixed-size binary header followed by an arithmetic-coded
+payload:
+
+```text
+8 bytes   magic/version: MYLLM001
+32 bytes  sha256(model_name)
+8 bytes   original UTF-8 byte length, big-endian unsigned integer
+4 bytes   tokenizer token count, big-endian unsigned integer
+4 bytes   first token id, big-endian unsigned integer
+...       arithmetic-coded predicted tokens
+```
+
+The first token is stored directly because the current MVP scores
+`P(token_i | previous tokens)`. The arithmetic payload stores tokens
+`1..N-1`. The byte length and token count tell the decoder exactly when to stop;
+without that metadata, arithmetic-coded intervals for different message lengths
+would be ambiguous.
+
+This is a correctness-first implementation. It recomputes the model context for
+each predicted token, so it is suitable for small files and prefixes. A future
+version should add KV-cache decoding and batched encoder-side scoring.

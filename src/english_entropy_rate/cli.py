@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from .baseline import compression_baselines
+from .llm_compressor import compress_file, decompress_file
 from .llm_estimator import estimate_llm_bits
 from .normalize import normalize_file
 
@@ -82,6 +83,62 @@ def run_clean(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_compress(args: argparse.Namespace) -> int:
+    try:
+        result = compress_file(
+            args.input,
+            args.output,
+            args.model,
+            max_length=args.max_length,
+            device=args.device,
+            freq_bits=args.freq_bits,
+            progress_every=args.progress_every,
+        )
+    except (RuntimeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    rows = [
+        ["input", str(result.input_path)],
+        ["output", str(result.output_path)],
+        ["model", result.model],
+        ["device", result.device],
+        ["original_bytes", str(result.original_size)],
+        ["tokens", str(result.token_count)],
+        ["payload_bytes", str(result.payload_size)],
+        ["total_bytes", str(result.total_size)],
+        ["bits/byte", f"{result.bits_per_byte:.4f}"],
+    ]
+    _print_table(["metric", "value"], rows)
+    return 0
+
+
+def run_decompress(args: argparse.Namespace) -> int:
+    try:
+        result = decompress_file(
+            args.input,
+            args.output,
+            args.model,
+            max_length=args.max_length,
+            device=args.device,
+            freq_bits=args.freq_bits,
+            progress_every=args.progress_every,
+        )
+    except (RuntimeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    rows = [
+        ["input", str(result.input_path)],
+        ["output", str(result.output_path)],
+        ["model", result.model],
+        ["original_bytes", str(result.original_size)],
+        ["tokens", str(result.token_count)],
+    ]
+    _print_table(["metric", "value"], rows)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="english-entropy-rate",
@@ -126,6 +183,42 @@ def build_parser() -> argparse.ArgumentParser:
     clean.add_argument("input", type=Path)
     clean.add_argument("output", type=Path)
     clean.set_defaults(func=run_clean)
+
+    compress = subparsers.add_parser(
+        "compress",
+        help="Compress UTF-8 text to a .my-llm file with LLM arithmetic coding.",
+    )
+    compress.add_argument("input", type=Path)
+    compress.add_argument("output", type=Path, nargs="?")
+    compress.add_argument("--model", default="distilbert/distilgpt2")
+    compress.add_argument("--max-length", type=int, default=1024)
+    compress.add_argument("--device", default=None)
+    compress.add_argument("--freq-bits", type=int, default=20)
+    compress.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Print progress every N predicted tokens. Use 0 to disable.",
+    )
+    compress.set_defaults(func=run_compress)
+
+    decompress = subparsers.add_parser(
+        "decompress",
+        help="Decompress a .my-llm file using the same LLM.",
+    )
+    decompress.add_argument("input", type=Path)
+    decompress.add_argument("output", type=Path)
+    decompress.add_argument("--model", default="distilbert/distilgpt2")
+    decompress.add_argument("--max-length", type=int, default=1024)
+    decompress.add_argument("--device", default=None)
+    decompress.add_argument("--freq-bits", type=int, default=20)
+    decompress.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Print progress every N predicted tokens. Use 0 to disable.",
+    )
+    decompress.set_defaults(func=run_decompress)
 
     return parser
 
