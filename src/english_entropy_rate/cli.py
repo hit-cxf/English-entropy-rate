@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .baseline import compression_baselines
 from .llm_estimator import estimate_llm_bits
+from .normalize import normalize_file
 
 
 def _print_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -64,6 +65,18 @@ def run_llm(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_clean(args: argparse.Namespace) -> int:
+    input_chars, output_chars = normalize_file(args.input, args.output)
+    rows = [
+        ["input", str(args.input)],
+        ["output", str(args.output)],
+        ["input_chars", str(input_chars)],
+        ["output_chars", str(output_chars)],
+    ]
+    _print_table(["metric", "value"], rows)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="english-entropy-rate",
@@ -88,6 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
     llm.add_argument("--stride", type=int, default=512)
     llm.add_argument("--device", default=None)
     llm.set_defaults(func=run_llm)
+
+    clean = subparsers.add_parser(
+        "clean",
+        help="Create a text file containing only lowercase a-z and spaces.",
+    )
+    clean.add_argument("input", type=Path)
+    clean.add_argument("output", type=Path)
+    clean.set_defaults(func=run_clean)
 
     return parser
 
