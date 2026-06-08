@@ -44,6 +44,7 @@ def run_llm(args: argparse.Namespace) -> int:
         result = estimate_llm_bits(
             args.path,
             args.model,
+            limit_chars=args.limit_chars,
             max_length=args.max_length,
             stride=args.stride,
             device=args.device,
@@ -97,6 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     llm.add_argument("path", type=Path)
     llm.add_argument("--model", default="distilgpt2")
+    llm.add_argument(
+        "--limit-chars",
+        type=int,
+        default=None,
+        help="Score only the first N characters of the input file.",
+    )
     llm.add_argument("--max-length", type=int, default=None)
     llm.add_argument("--stride", type=int, default=512)
     llm.add_argument("--device", default=None)

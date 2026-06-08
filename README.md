@@ -24,7 +24,16 @@ PYTHONPATH=src python -m english_entropy_rate baseline data/sample.txt
 Run the LLM ideal-code estimator after installing optional dependencies:
 
 ```bash
-PYTHONPATH=src python -m english_entropy_rate llm data/sample.txt --model gpt2
+PYTHONPATH=src python -m english_entropy_rate llm data/sample.txt --model distilbert/distilgpt2
+```
+
+For a large file, start with a prefix:
+
+```bash
+PYTHONPATH=src python -m english_entropy_rate llm \
+  data/middlemarch_lowercase_letters_spaces.txt \
+  --model distilbert/distilgpt2 \
+  --limit-chars 50000
 ```
 
 For larger texts, use a smaller model first (`distilgpt2`) and increase

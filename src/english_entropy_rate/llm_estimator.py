@@ -21,6 +21,7 @@ def estimate_llm_bits(
     path: Path,
     model_name: str,
     *,
+    limit_chars: int | None = None,
     max_length: int | None = None,
     stride: int = 512,
     device: str | None = None,
@@ -36,6 +37,11 @@ def estimate_llm_bits(
 
     raw = path.read_bytes()
     text = raw.decode("utf-8")
+    if limit_chars is not None:
+        if limit_chars <= 0:
+            raise ValueError("limit_chars must be positive")
+        text = text[:limit_chars]
+        raw = text.encode("utf-8")
     if not text:
         raise ValueError("input text must not be empty")
 
