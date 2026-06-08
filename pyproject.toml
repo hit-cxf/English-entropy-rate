@@ -1,0 +1,26 @@
+[project]
+name = "english-entropy-rate"
+version = "0.1.0"
+description = "Estimate English text entropy rate with compressors and language models."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+llm = [
+  "torch>=2.0",
+  "transformers>=4.40",
+]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+english-entropy-rate = "english_entropy_rate.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

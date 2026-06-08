@@ -1,0 +1,4 @@
+Information theory asks how much uncertainty remains after context is known.
+English text is highly redundant: letters, words, syntax, and meaning all make
+the next symbol easier to predict. A compressor that can predict the next token
+well can spend fewer bits describing it.
