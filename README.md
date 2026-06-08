@@ -1,17 +1,41 @@
 # English Entropy Rate
 
-Small experiments for estimating English text entropy rate from compression and
-language-model prediction.
+**Language:** English | [中文](README.zh-CN.md)
 
-The project has two complementary estimators:
+Experiments for estimating English text entropy rate with traditional
+compression, language-model cross entropy, and a small LLM-driven arithmetic
+compressor.
+
+This repository grew out of a simple question:
+
+> If English has about 26 letters, why can its entropy rate be close to
+> `1.3 bit/symbol` rather than `5 bit/symbol`?
+
+The project explores that question from three angles:
 
 - `baseline`: compare ordinary lossless compressors against raw UTF-8 text.
-- `llm`: estimate the ideal arithmetic-coding length from a language model's
-  next-token probabilities.
+- `llm`: estimate ideal arithmetic-coding length from an LLM's next-token
+  probabilities.
+- `compress` / `decompress`: write and read real `.my-llm` compressed files
+  using LLM probabilities plus arithmetic coding.
 
-The LLM estimator does not write a compressed file yet. It computes the number
-of bits an ideal arithmetic coder would need if it used the same model
-probabilities.
+## Current Results
+
+On a normalized Project Gutenberg copy of *Middlemarch* containing only
+lowercase English letters `a-z` and spaces:
+
+| method/model | scope | bits/char |
+| --- | --- | ---: |
+| gzip | full book | 2.8062 |
+| bz2 | full book | 2.0179 |
+| lzma | full book | 2.2080 |
+| `distilbert/distilgpt2` ideal LLM code | full book | 1.3948 |
+| `distilbert/distilgpt2` ideal LLM code | first 50k chars | 1.4126 |
+| `Qwen/Qwen3-0.6B-Base` ideal LLM code | first 50k chars | 1.1473 |
+
+The LLM rows are theoretical payload lengths from
+`sum_i -log2 P(token_i | previous context)`, excluding model weights, tokenizer
+files, format headers, and finite-precision coding overhead.
 
 ## Quick Start
 
@@ -21,13 +45,7 @@ Run the traditional compression baselines:
 PYTHONPATH=src python -m english_entropy_rate baseline data/sample.txt
 ```
 
-Run the LLM ideal-code estimator after installing optional dependencies:
-
-```bash
-PYTHONPATH=src python -m english_entropy_rate llm data/sample.txt --model distilbert/distilgpt2
-```
-
-For a large file, start with a prefix:
+Estimate the ideal LLM arithmetic-code length:
 
 ```bash
 PYTHONPATH=src python -m english_entropy_rate llm \
@@ -41,7 +59,7 @@ PYTHONPATH=src python -m english_entropy_rate llm \
 On Apple Silicon, the CLI automatically prefers the MPS backend when available.
 Override it with `--device cpu` or `--device mps` when comparing hardware.
 
-Compress a small UTF-8 text file to the project format:
+Compress a UTF-8 text file to `.my-llm`:
 
 ```bash
 PYTHONPATH=src python -m english_entropy_rate compress \
@@ -59,8 +77,22 @@ PYTHONPATH=src python -m english_entropy_rate decompress \
   --model distilbert/distilgpt2
 ```
 
-For larger texts, use a smaller model first (`distilgpt2`) and increase
-`--stride` only after the workflow is behaving as expected.
+For larger texts, start with a small prefix and a small model. The current
+compressor MVP recomputes model context per token, so it is correct but slow.
+
+## Corpus Preparation
+
+The repository includes a Project Gutenberg copy of *Middlemarch* and a cleaned
+version containing only lowercase letters and spaces:
+
+```bash
+PYTHONPATH=src python -m english_entropy_rate clean \
+  data/middlemarch_gutenberg_145.txt \
+  data/middlemarch_lowercase_letters_spaces.txt
+```
+
+The cleaning step lowercases letters, treats every non-`a-z` character as a word
+boundary, and collapses consecutive spaces.
 
 ## Metrics
 
@@ -77,16 +109,8 @@ For the LLM estimator:
 ideal_bits = sum_i -log2 P(token_i | previous context)
 ```
 
-This is the compressed length an ideal arithmetic coder would approach,
-excluding file headers, model parameters, tokenizer metadata, and finite-precision
-coding overhead.
-
-## Notes
-
-- Use held-out text that the model probably has not memorized.
-- Report the symbol unit clearly: byte, character, token, or letter.
-- A pretrained model is shared side information. If you count model weights as
-  part of the compressed payload, short files become extremely expensive.
+This is the compressed length an ideal arithmetic coder would approach if both
+encoder and decoder shared exactly the same model and tokenizer.
 
 ## `.my-llm` Format
 
@@ -108,6 +132,11 @@ The first token is stored directly because the current MVP scores
 without that metadata, arithmetic-coded intervals for different message lengths
 would be ambiguous.
 
-This is a correctness-first implementation. It recomputes the model context for
-each predicted token, so it is suitable for small files and prefixes. A future
-version should add KV-cache decoding and batched encoder-side scoring.
+## Notes
+
+- Use held-out text that the model probably has not memorized.
+- Report the symbol unit clearly: byte, character, token, or letter.
+- A pretrained model is shared side information. If model weights count as part
+  of the compressed payload, short files become extremely expensive.
+- The `.my-llm` compressor is correctness-first. A future version should add
+  KV-cache decoding and batched encoder-side scoring.
