@@ -33,8 +33,13 @@ For a large file, start with a prefix:
 PYTHONPATH=src python -m english_entropy_rate llm \
   data/middlemarch_lowercase_letters_spaces.txt \
   --model distilbert/distilgpt2 \
-  --limit-chars 50000
+  --limit-chars 50000 \
+  --max-length 1024 \
+  --stride 512
 ```
+
+On Apple Silicon, the CLI automatically prefers the MPS backend when available.
+Override it with `--device cpu` or `--device mps` when comparing hardware.
 
 For larger texts, use a smaller model first (`distilgpt2`) and increase
 `--stride` only after the workflow is behaving as expected.

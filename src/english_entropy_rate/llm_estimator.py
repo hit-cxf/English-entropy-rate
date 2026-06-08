@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,6 +9,9 @@ from pathlib import Path
 @dataclass(frozen=True)
 class LlmEntropyResult:
     model: str
+    device: str
+    max_length: int
+    stride: int
     tokens_scored: int
     chars: int
     bytes: int
@@ -25,6 +29,7 @@ def estimate_llm_bits(
     max_length: int | None = None,
     stride: int = 512,
     device: str | None = None,
+    progress_every: int | None = None,
 ) -> LlmEntropyResult:
     try:
         import torch
@@ -48,7 +53,12 @@ def estimate_llm_bits(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
     if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
     model.to(device)
     model.eval()
 
@@ -59,16 +69,34 @@ def estimate_llm_bits(
         raise ValueError("input text is too short to score next-token prediction")
 
     if max_length is None:
-        max_length = int(getattr(model.config, "n_positions", 1024))
+        max_length = int(
+            getattr(
+                model.config,
+                "n_positions",
+                getattr(model.config, "max_position_embeddings", 1024),
+            )
+        )
     if stride <= 0 or stride > max_length:
         raise ValueError("stride must be in the range 1..max_length")
+    if progress_every is not None and progress_every <= 0:
+        raise ValueError("progress_every must be positive")
 
     total_nll = 0.0
     tokens_scored = 0
+    total_windows = math.ceil(sequence_length / stride)
+
+    if progress_every is not None:
+        print(
+            "scoring "
+            f"{sequence_length} tokens on {device} "
+            f"(max_length={max_length}, stride={stride}, windows~{total_windows})",
+            file=sys.stderr,
+            flush=True,
+        )
 
     with torch.no_grad():
         previous_end = 0
-        for begin in range(0, sequence_length, stride):
+        for window_index, begin in enumerate(range(0, sequence_length, stride), start=1):
             end = min(begin + max_length, sequence_length)
             target_length = end - previous_end
             window = input_ids[:, begin:end]
@@ -82,6 +110,17 @@ def estimate_llm_bits(
                 tokens_scored += scored
 
             previous_end = end
+            if progress_every is not None and (
+                window_index == 1
+                or window_index % progress_every == 0
+                or end == sequence_length
+            ):
+                print(
+                    f"window {window_index}/{total_windows}: "
+                    f"scored {tokens_scored}/{sequence_length - 1} tokens",
+                    file=sys.stderr,
+                    flush=True,
+                )
             if end == sequence_length:
                 break
 
@@ -91,6 +130,9 @@ def estimate_llm_bits(
     total_bits = total_nll / math.log(2)
     return LlmEntropyResult(
         model=model_name,
+        device=device,
+        max_length=max_length,
+        stride=stride,
         tokens_scored=tokens_scored,
         chars=len(text),
         bytes=len(raw),

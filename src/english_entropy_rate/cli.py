@@ -48,12 +48,16 @@ def run_llm(args: argparse.Namespace) -> int:
             max_length=args.max_length,
             stride=args.stride,
             device=args.device,
+            progress_every=args.progress_every,
         )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     rows = [
         ["model", result.model],
+        ["device", result.device],
+        ["max_length", str(result.max_length)],
+        ["stride", str(result.stride)],
         ["tokens_scored", str(result.tokens_scored)],
         ["chars", str(result.chars)],
         ["bytes", str(result.bytes)],
@@ -107,6 +111,12 @@ def build_parser() -> argparse.ArgumentParser:
     llm.add_argument("--max-length", type=int, default=None)
     llm.add_argument("--stride", type=int, default=512)
     llm.add_argument("--device", default=None)
+    llm.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        help="Print progress every N scoring windows. Use 0 to disable.",
+    )
     llm.set_defaults(func=run_llm)
 
     clean = subparsers.add_parser(
@@ -123,4 +133,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "progress_every", None) == 0:
+        args.progress_every = None
     return args.func(args)
